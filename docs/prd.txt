@@ -1,0 +1,531 @@
+# Product Requirements Document (PRD)
+## Experimental React + WebAssembly Layer Manipulation Application
+
+### 1. Executive Summary
+
+This PRD defines an experimental web application that validates a novel architectural approach: using React for UI structure and controls while delegating dynamic content creation and manipulation to WebAssembly via web-sys, with zero JavaScript intermediary code for the core interactive elements.
+
+### 2. Product Objectives
+
+#### Primary Objective
+Prove the viability of a hybrid React + WebAssembly architecture where:
+- React creates and manages all static UI components (controls, panels, inputs)
+- WebAssembly creates and manages all dynamic interactive elements (draggable layers)
+- Zero JavaScript bridge code for layer manipulation
+
+#### Secondary Objectives
+- Establish performance benchmarks for WASM-driven DOM manipulation
+- Create a reusable pattern for future React + WASM applications
+- Document the optimal separation of concerns between React and WASM
+
+### 3. Architectural Principles
+
+#### 3.1 Division of Responsibilities
+
+**React Responsibilities:**
+- Create all UI chrome (buttons, inputs, panels, containers)
+- Manage application layout and structure
+- Handle form controls and user inputs
+- Provide mounting containers for WASM content
+- Maintain all styleable UI elements
+
+**WASM Responsibilities:**
+- Create and manage dynamic layer elements
+- Handle all drag-and-drop logic
+- Manage layer state and positioning
+- Direct DOM manipulation for performance-critical updates
+- Event handling for interactive elements
+
+#### 3.2 Key Architectural Decision
+React creates maximum HTML elements for styling purposes, while WASM only creates the dynamic content that requires high-performance manipulation. This ensures CSS maintainability while preserving performance benefits.
+
+### 4. Design Philosophy - Minimalist First
+
+## MINIMALIST UI PRINCIPLES
+
+Based on the principle that **Claude Code is 3x faster without styling**, we adopt a wireframe-first approach:
+
+### 4.1 Core Design Rules
+
+1. **No Visual Styling During Development**
+   - No gradients, shadows, or animations
+   - No CSS frameworks or component libraries
+   - Black text on white background only
+   - Focus on functionality, not aesthetics
+
+2. **Form Design**
+   - Simple vertical stacking: label above input
+   - No decorations or fancy borders
+   - Plain HTML inputs with default browser styling
+   ```html
+   <label>Name</label>
+   <input type="text" />
+   ```
+
+3. **Tables and Grids**
+   - Plain HTML tables or simple CSS grid
+   - No zebra striping or hover effects
+   - Borders only when functionally necessary
+   - Raw data presentation
+
+4. **Interactive Elements**
+   - Single color state changes (white → green on click)
+   - No transitions or animations
+   - Minimal hover states (border color change only)
+
+5. **Dashboard Components**
+   - Simple boxes with headings
+   - Raw numbers and text
+   - Chart placeholders: "Chart goes here"
+   - No visual embellishments
+
+### 4.2 Why This Approach
+
+- **3x Faster Development**: Less cognitive overhead for AI
+- **Cleaner Code**: Smaller, more readable codebase
+- **Better Focus**: Functionality over form
+- **Easy Testing**: Clear visual confirmation of working features
+- **Future-Proof**: Clean structure ready for design system overlay
+
+### 4.3 Development Workflow
+
+1. **Prototype Fast**: Get working skeleton in place
+2. **Wire Up Data**: Ensure backend/API connections work
+3. **Skin Later**: Apply design system once everything works
+
+### 4.4 Practical CSS Rules
+
+```css
+/* Entire application styles in < 50 lines */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: system-ui; line-height: 1.5; }
+
+.workspace {
+  width: 800px;
+  height: 600px;
+  border: 1px solid #ccc;
+  position: relative;
+}
+
+.control-panel {
+  width: 250px;
+  padding: 20px;
+  border-left: 1px solid #ccc;
+}
+
+.wasm-layer {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border: 1px solid #ccc;
+  background: white;
+}
+
+.wasm-layer[data-selected="true"] {
+  border-color: #000;
+}
+
+input { 
+  width: 100%;
+  padding: 4px;
+  margin-bottom: 8px;
+}
+
+button {
+  width: 100%;
+  padding: 8px;
+  background: white;
+  border: 1px solid #ccc;
+  cursor: pointer;
+}
+
+button:active { background: #eee; }
+```
+
+### 5. Technical Implementation Standards
+
+## REACT BEST PRACTICES
+
+### 4.1 Custom Hook Pattern for WASM Mounting
+
+```jsx
+// hooks/useWasmMount.js
+export function useWasmMount(mountType, deps = []) {
+  const containerRef = useRef(null);
+  const mountedRef = useRef(false);
+  
+  useEffect(() => {
+    if (!containerRef.current || mountedRef.current) return;
+    
+    const wasm = WasmModule.getInstance();
+    mountedRef.current = true;
+    wasm[`mount_${mountType}`]?.(containerRef.current);
+    
+    return () => {
+      mountedRef.current = false;
+      wasm[`unmount_${mountType}`]?.();
+    };
+  }, deps);
+  
+  return containerRef;
+}
+```
+
+### 4.2 Semantic Component Naming
+
+- Components that provide WASM mount points should be clearly named
+- Use `data-wasm-container` or `data-wasm-enhanced` attributes
+- Include clear documentation about React/WASM boundaries
+
+```jsx
+// WasmContainer component for mount points
+export const WasmContainer = forwardRef(({ mountType, ...props }, ref) => (
+  <div
+    ref={ref}
+    data-wasm-container={mountType}
+    {...props}
+  />
+));
+```
+
+### 4.3 Context for WASM Instance
+
+```jsx
+// contexts/WasmContext.jsx
+const WasmContext = createContext(null);
+
+export function WasmProvider({ children }) {
+  const [wasm, setWasm] = useState(null);
+  const [status, setStatus] = useState('loading');
+  
+  useEffect(() => {
+    WasmModule.init()
+      .then(instance => {
+        setWasm(instance);
+        setStatus('ready');
+      })
+      .catch(err => setStatus('error'));
+  }, []);
+  
+  return (
+    <WasmContext.Provider value={{ wasm, status }}>
+      {children}
+    </WasmContext.Provider>
+  );
+}
+
+export const useWasm = () => {
+  const context = useContext(WasmContext);
+  if (!context) throw new Error('useWasm must be used within WasmProvider');
+  return context;
+};
+```
+
+### 4.4 Component Documentation Standards
+
+Every component interfacing with WASM must include:
+- Clear documentation about its role (structure vs behavior)
+- Warning comments about not adding React state/handlers to WASM containers
+- Examples of correct vs incorrect usage
+
+### 4.5 File Structure Convention
+
+```
+src/
+├── components/
+│   ├── wasm-containers/     # WASM mount point components
+│   └── ui-controls/          # Pure React UI components
+├── hooks/
+│   └── wasm/                # WASM-related hooks
+├── contexts/
+│   └── WasmContext.jsx      # WASM instance provider
+├── styles/
+│   ├── components/          # React component styles
+│   └── wasm-elements.scss   # Styles for WASM-created elements
+└── wasm/
+    └── wasm_module.js       # WASM module wrapper
+```
+
+## WEBASSEMBLY/RUST BEST PRACTICES
+
+### 4.6 Memory Management Pattern
+
+```rust
+// Explicit memory management with RAII
+pub struct EventHandle {
+    target: EventTarget,
+    event_type: String,
+    closure: Option<Closure<dyn FnMut(web_sys::Event)>>,
+}
+
+impl Drop for EventHandle {
+    fn drop(&mut self) {
+        if let Some(closure) = self.closure.take() {
+            let _ = self.target.remove_event_listener_with_callback(
+                &self.event_type,
+                closure.as_ref().unchecked_ref(),
+            );
+        }
+    }
+}
+```
+
+### 4.7 Error Handling Pattern
+
+```rust
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum AppError {
+    #[error("DOM element not found: {0}")]
+    ElementNotFound(String),
+    
+    #[error("Invalid state transition: {0}")]
+    InvalidState(String),
+}
+
+pub type WasmResult<T> = Result<T, AppError>;
+```
+
+### 4.8 State Management
+
+- Centralized state in WASM module
+- Transaction-based updates for consistency
+- Direct DOM updates after state changes
+- No state duplication between React and WASM
+
+### 4.9 DOM Manipulation Standards
+
+```rust
+// Fluent API for DOM building
+pub struct DomBuilder {
+    element: Element,
+}
+
+impl DomBuilder {
+    pub fn create(doc: &Document, tag: &str) -> WasmResult<Self>;
+    pub fn id(self, id: &str) -> Self;
+    pub fn class(self, class: &str) -> Self;
+    pub fn style(self, property: &str, value: &str) -> WasmResult<Self>;
+    pub fn build(self) -> Element;
+}
+```
+
+### 4.10 Module Organization
+
+- Separate modules for workspace, controls, event handling
+- Clear public API boundaries
+- Component-based organization matching React structure
+
+## INTEGRATION PATTERNS
+
+### 4.11 React to WASM Communication
+
+```jsx
+// React calls WASM methods directly
+const wasm = useWasm();
+wasm.update_selected_position('x', value);
+wasm.bring_to_front();
+```
+
+### 4.12 WASM to React Updates
+
+```rust
+// WASM updates React inputs via data attributes
+fn sync_position_inputs(&self) -> Result<(), JsValue> {
+    let input = self.document.query_selector("[data-wasm-sync='position-x']")?;
+    input.set_attribute("value", &layer.x.to_string())?;
+}
+```
+
+### 4.13 CSS Strategy
+
+**React Components:** Use CSS classes and stylesheets
+```scss
+.control-panel {
+  width: 250px;
+  background: white;
+  border-left: 1px solid #e0e0e0;
+}
+```
+
+**WASM Elements:** Minimal inline styles for positioning only
+```rust
+layer_elem.set_attribute("style", &format!(
+    "position: absolute; left: {}px; top: {}px;",
+    x, y
+))?;
+```
+
+**Shared Styles:** Use data attributes for state
+```scss
+.wasm-layer {
+  &[data-selected="true"] {
+    border: 2px solid #2196f3;
+  }
+}
+```
+
+### 6. Functional Requirements
+
+#### 6.1 Layer System
+- 5 draggable rectangular layers (100x100px)
+- Properties: position (x,y), z-index, selection state
+- Created and managed entirely by WASM
+- Visual feedback: border changes from #ccc to #000 on selection
+
+#### 6.2 UI Controls (React-managed)
+- **Position Inputs**: Simple label + input stacked vertically
+- **Layer Order Buttons**: Plain white buttons with 1px border
+- **Layer List**: Unordered list with click selection
+- **No styling beyond functional requirements**
+
+#### 6.3 Interaction States
+- **Default**: White background, gray border (#ccc)
+- **Selected**: Black border (#000)
+- **Dragging**: Opacity 0.8 (only visual effect)
+- **Hover**: No effects (or minimal border darkening)
+
+#### 6.4 Visual Examples
+```
+FORM LAYOUT:           GRID LAYOUT:         STATE CHANGES:
+┌─────────────┐       ┌──┬──┬──┬──┐        □ → ■ (selected)
+│Label        │       │  │  │  │  │        
+│[          ] │       ├──┼──┼──┼──┤        White → Green
+│             │       │  │  │  │  │        (clicked)
+│Label        │       └──┴──┴──┴──┘
+│[          ] │       
+└─────────────┘       
+```
+
+### 6. Technical Stack
+
+- **React 18+**: Component structure and UI controls
+- **Rust + wasm-bindgen**: Core logic and layer management
+- **web-sys**: Direct DOM manipulation
+- **No CSS frameworks**: Plain CSS for maximum control
+- **Context API**: WASM instance distribution
+
+### 7. Success Criteria
+
+#### Technical Success
+- Zero JavaScript intermediary for layer operations
+- Smooth 60fps drag operations
+- Clean separation of concerns
+- No memory leaks
+
+#### Code Quality
+- Clear React/WASM boundaries
+- Maintainable CSS structure
+- Comprehensive error handling
+- Well-documented interfaces
+
+### 8. Implementation Phases
+
+#### Phase 1: Architecture Setup
+- React app with Context provider
+- WASM module initialization
+- Basic mount point system
+
+#### Phase 2: UI Framework (React)
+- Control panel components
+- Input controls
+- Styling system
+
+#### Phase 3: Dynamic Content (WASM)
+- Layer creation and rendering
+- Drag-and-drop implementation
+- State management
+
+#### Phase 4: Integration
+- React-WASM communication
+- Input synchronization
+- Performance optimization
+
+### 9. Key Architectural Benefits
+
+1. **Clear Separation**: React owns UI, WASM owns dynamic content
+2. **CSS Maintainability**: Most elements are React-created and styleable
+3. **Performance**: Critical path operations in WASM
+4. **Developer Experience**: Clear boundaries reduce confusion
+5. **Testing**: Components can be tested independently
+6. **Debugging**: Clear ownership of elements
+
+### 10. Development Guidelines
+
+#### DO:
+- Start with wireframe-like UI (think whiteboard sketch)
+- Use plain HTML elements with default browser styling
+- Keep entire CSS under 50 lines
+- Focus on functionality before aesthetics
+- Write the smallest possible working code
+- Test features with visual simplicity
+- Build structure cleanly for future design system
+
+#### DON'T:
+- Add any visual styling during initial development
+- Use CSS frameworks or UI libraries
+- Include gradients, shadows, or animations
+- Implement hover effects or transitions
+- Style beyond functional necessity
+- Worry about "pretty" until everything works
+
+#### MINIMALIST CHECKLIST:
+- [ ] Forms: Just labels and inputs vertically stacked
+- [ ] Tables: Plain HTML with no decoration
+- [ ] Buttons: White background, 1px border
+- [ ] Colors: Black text on white only
+- [ ] States: Single color change for interactions
+- [ ] Code: Under 200 lines total CSS
+- [ ] Focus: Function over form
+
+### 11. Testing Strategy
+
+#### React Testing
+- Test UI components in isolation
+- Mock WASM context for unit tests
+- Test user interactions with React controls
+
+#### WASM Testing
+- Use wasm-bindgen-test for Rust tests
+- Test layer manipulation logic
+- Test memory management
+
+#### Integration Testing
+- Test React-WASM communication
+- Test state synchronization
+- Performance benchmarks
+
+### 12. Performance Requirements
+
+- Layer drag operations: 60fps minimum
+- WASM initialization: < 100ms
+- Memory usage: Stable over time
+- Bundle size: WASM module < 500KB
+
+### 13. Browser Support
+
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
+
+### 14. Speed Benefits of Minimalist Approach
+
+Based on empirical testing, the minimalist approach provides:
+
+- **3x Faster Development**: Reduced from 24 minutes to 8 minutes for complex features
+- **Cleaner API Integration**: Backend calls work immediately without UI distractions
+- **Reduced Cognitive Load**: AI focuses on logic, not aesthetics
+- **Faster Iterations**: 2 requests vs 5+ for styled versions
+- **Immediate Functionality Testing**: Visual clarity on what works
+
+### 15. Conclusion
+
+This hybrid approach leverages the strengths of both technologies:
+- React provides excellent developer experience for UI
+- WASM delivers performance for interactive elements
+- Clear boundaries make the system maintainable
+- CSS remains fully under developer control
+
+The architecture proves that React and WebAssembly can work together effectively without complex bridging code, opening new possibilities for high-performance web applications.

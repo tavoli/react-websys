@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    // Runtime target
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+
+    // Bun-compatible bundler mode
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    // React
+    "jsx": "react-jsx",
+
+    // Type checking
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "skipLibCheck": true,
+
+    // Path aliases
+    "baseUrl": ".",
+    "paths": {
+      "@web/*": ["packages/web/src/*"],
+      "@wasm/*": ["packages/wasm/pkg/*"]
+    }
+  },
+  "include": ["scripts"],
+  "exclude": ["node_modules", "dist"]
+}
